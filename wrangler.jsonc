@@ -6,6 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
   "vars": {
     "KURA_BASE_URL": "https://kuracms.com",
     "KURA_PROJECT": "property"

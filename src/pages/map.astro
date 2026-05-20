@@ -1,0 +1,102 @@
+---
+import Base from "../layouts/Base.astro";
+import { fetchListings, formatJpy, type KuraEnv, type Listing } from "../lib/kura";
+
+const env = Astro.locals.runtime?.env as KuraEnv | undefined;
+const all = await fetchListings(env ?? {}, { limit: 100 });
+const withGeo = all.filter((l) => l.latitude != null && l.longitude != null);
+const points = withGeo.map((l) => ({
+	slug: l.slug,
+	title: l.title,
+	lat: l.latitude as number,
+	lon: l.longitude as number,
+	price: formatJpy(l.price_jpy),
+	hero: l.hero_image ?? "",
+	status: l.status,
+}));
+---
+
+<Base title="Inaka - map of country houses in Japan" fullBleed>
+	<div id="map" data-points={JSON.stringify(points)}></div>
+</Base>
+
+<script>
+	import maplibregl from "maplibre-gl";
+	const el = document.getElementById("map") as HTMLDivElement | null;
+	if (el && el.dataset.points) {
+		type P = {
+			slug: string;
+			title: string;
+			lat: number;
+			lon: number;
+			price: string;
+			hero: string;
+			status: string;
+		};
+		const points: P[] = JSON.parse(el.dataset.points);
+
+		const focusSlug = new URLSearchParams(location.search).get("focus");
+		const focusPoint = points.find((p) => p.slug === focusSlug);
+
+		const map = new maplibregl.Map({
+			container: el,
+			style: "https://tiles.openfreemap.org/styles/liberty",
+			center: focusPoint ? [focusPoint.lon, focusPoint.lat] : [136.5, 35.5],
+			zoom: focusPoint ? 9 : 4.5,
+			attributionControl: { compact: true },
+		});
+
+		map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+		map.on("load", () => {
+			for (const p of points) {
+				const color =
+					p.status === "sold"
+						? "#6b6660"
+						: p.status === "under_offer"
+							? "#8b5a2b"
+							: "#2f4737";
+				const html = `
+					<a href="/listings/${p.slug}" style="text-decoration:none;color:inherit;display:block;width:200px">
+						${p.hero ? `<img src="${p.hero}" style="width:100%;height:120px;object-fit:cover;border-radius:6px;margin-bottom:0.5rem" />` : ""}
+						<strong style="font-family:ui-serif,Georgia,serif;font-size:0.95rem;line-height:1.3;display:block;margin-bottom:0.25rem">${p.title}</strong>
+						<span style="color:#2f4737;font-weight:600">${p.price}</span>
+					</a>
+				`;
+				new maplibregl.Marker({ color })
+					.setLngLat([p.lon, p.lat])
+					.setPopup(new maplibregl.Popup({ offset: 24, closeButton: false }).setHTML(html))
+					.addTo(map);
+			}
+			if (focusPoint) {
+				// open the popup for the focused point
+				setTimeout(() => {
+					const marker = document.querySelectorAll(".maplibregl-marker")[
+						points.indexOf(focusPoint)
+					] as HTMLElement;
+					if (marker) marker.click();
+				}, 200);
+			}
+		});
+	}
+</script>
+
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
+
+<style>
+	#map {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		top: 4.5rem; /* below the sticky header */
+	}
+	:global(.maplibregl-popup-content) {
+		padding: 0.75rem !important;
+		border-radius: 10px !important;
+		font-family: ui-sans-serif, system-ui, sans-serif !important;
+	}
+	:global(footer) {
+		display: none;
+	}
+</style>

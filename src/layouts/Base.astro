@@ -2,8 +2,13 @@
 interface Props {
 	title?: string;
 	description?: string;
+	fullBleed?: boolean; // for /map - no shell padding
 }
-const { title = "Inaka", description = "Country houses for sale in Japan." } = Astro.props;
+const {
+	title = "Inaka - country houses in Japan",
+	description = "A small list of country houses for sale in rural Japan.",
+	fullBleed = false,
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -13,15 +18,42 @@ const { title = "Inaka", description = "Country houses for sale in Japan." } = A
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>{title}</title>
 		<meta name="description" content={description} />
+		<link rel="preconnect" href="https://images.akiyahopper.com" crossorigin />
+		<script is:inline>
+			// Apply theme before paint to avoid FOUC.
+			(() => {
+				const s = localStorage.getItem("inaka-theme");
+				const prefers = window.matchMedia("(prefers-color-scheme: dark)").matches;
+				const t = s ?? (prefers ? "dark" : "light");
+				if (t === "dark") document.documentElement.dataset.theme = "dark";
+			})();
+		</script>
 		<style is:global>
 			:root {
-				--bg: #faf8f4;
-				--fg: #1a1916;
-				--muted: #645d4f;
-				--faint: #999286;
-				--line: #e6e1d6;
-				--card: #fff;
-				--accent: #46584b;
+				--bg: #faf7f1;
+				--fg: #1c1a16;
+				--muted: #645e51;
+				--faint: #a09887;
+				--line: #e9e2d3;
+				--card: #ffffff;
+				--accent: #2f4737;
+				--accent-soft: rgba(47, 71, 55, 0.08);
+				--badge-available: #2f4737;
+				--badge-under-offer: #8b5a2b;
+				--badge-sold: #6b6660;
+			}
+			:root[data-theme="dark"] {
+				--bg: #14130f;
+				--fg: #f3efe5;
+				--muted: #aaa294;
+				--faint: #6f6a5d;
+				--line: #2a2823;
+				--card: #1b1a16;
+				--accent: #9fbfa5;
+				--accent-soft: rgba(159, 191, 165, 0.12);
+				--badge-available: #9fbfa5;
+				--badge-under-offer: #c79a6d;
+				--badge-sold: #8e887d;
 			}
 			* {
 				box-sizing: border-box;
@@ -30,71 +62,150 @@ const { title = "Inaka", description = "Country houses for sale in Japan." } = A
 				margin: 0;
 				color: var(--fg);
 				background: var(--bg);
-				font-family:
-					ui-serif,
-					"Iowan Old Style",
-					Georgia,
-					serif;
+				font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
 				-webkit-font-smoothing: antialiased;
+			}
+			h1,
+			h2,
+			h3 {
+				font-family: ui-serif, "Iowan Old Style", "Hiragino Mincho ProN", Georgia, serif;
+				font-weight: 600;
+				letter-spacing: -0.015em;
 			}
 			a {
 				color: inherit;
 			}
 			.shell {
-				max-width: 60rem;
+				max-width: 70rem;
 				margin: 0 auto;
-				padding: 0 clamp(1.25rem, 5vw, 3rem);
+				padding: 0 clamp(1rem, 4vw, 2.5rem);
 			}
 			.site-nav {
 				display: flex;
 				justify-content: space-between;
-				align-items: baseline;
-				padding: 1.75rem 0;
+				align-items: center;
+				padding: 1.5rem 0;
 			}
 			.brand {
-				font-size: 1.4rem;
-				font-weight: 700;
-				letter-spacing: -0.02em;
+				display: inline-flex;
+				align-items: baseline;
+				gap: 0.5rem;
 				text-decoration: none;
 			}
-			.brand small {
-				font-weight: 400;
+			.brand .mark {
+				font-family: ui-serif, "Iowan Old Style", Georgia, serif;
+				font-size: 1.5rem;
+				font-weight: 700;
+				letter-spacing: -0.03em;
+			}
+			.brand .sub {
+				font-size: 0.78rem;
 				color: var(--muted);
 				font-style: italic;
-				margin-left: 0.3rem;
-				font-size: 0.85rem;
+				letter-spacing: 0.02em;
 			}
-			.site-nav a {
+			.nav-links {
+				display: flex;
+				align-items: center;
+				gap: 1.25rem;
+			}
+			.nav-links a {
 				color: var(--muted);
 				text-decoration: none;
+				font-size: 0.92rem;
+			}
+			.nav-links a:hover,
+			.nav-links a[aria-current="page"] {
+				color: var(--fg);
+			}
+			.theme-toggle {
+				background: transparent;
+				border: 1px solid var(--line);
+				color: var(--muted);
+				border-radius: 999px;
+				width: 2.2rem;
+				height: 2.2rem;
+				cursor: pointer;
+				display: grid;
+				place-items: center;
 				font-size: 0.95rem;
+				transition:
+					border-color 0.15s,
+					color 0.15s;
+			}
+			.theme-toggle:hover {
+				border-color: var(--fg);
+				color: var(--fg);
 			}
 			footer {
 				margin-top: 5rem;
-				padding: 2rem 0 3rem;
+				padding: 2.5rem 0 3rem;
 				border-top: 1px solid var(--line);
 				color: var(--faint);
 				font-size: 0.85rem;
+				line-height: 1.55;
+			}
+			footer a {
+				color: var(--muted);
 			}
 			footer code {
 				font-family: ui-monospace, monospace;
-				font-size: 0.8rem;
+				font-size: 0.78rem;
+				background: var(--accent-soft);
+				padding: 0.05rem 0.3rem;
+				border-radius: 4px;
+			}
+			@media (max-width: 480px) {
+				.brand .sub {
+					display: none;
+				}
+				.nav-links {
+					gap: 0.85rem;
+				}
 			}
 		</style>
+		<script is:inline>
+			document.addEventListener("DOMContentLoaded", () => {
+				const btn = document.querySelector(".theme-toggle");
+				if (!btn) return;
+				const update = () => {
+					const t = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+					btn.textContent = t === "dark" ? "☀" : "☾";
+				};
+				update();
+				btn.addEventListener("click", () => {
+					const cur = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+					const next = cur === "dark" ? "light" : "dark";
+					if (next === "dark") document.documentElement.dataset.theme = "dark";
+					else delete document.documentElement.dataset.theme;
+					localStorage.setItem("inaka-theme", next);
+					update();
+				});
+			});
+		</script>
 	</head>
 	<body>
-		<header class="site-nav shell">
-			<a class="brand" href="/">Inaka <small>countryside houses</small></a>
-			<nav><a href="/">All listings</a></nav>
+		<header class={fullBleed ? "site-nav" : "site-nav shell"} style={fullBleed ? "padding-left: clamp(1rem, 4vw, 2.5rem); padding-right: clamp(1rem, 4vw, 2.5rem)" : ""}>
+			<a class="brand" href="/">
+				<span class="mark">Inaka</span><span class="sub">country houses</span>
+			</a>
+			<div class="nav-links">
+				<a href="/" aria-current={Astro.url.pathname === "/" ? "page" : undefined}>Listings</a>
+				<a href="/map" aria-current={Astro.url.pathname === "/map" ? "page" : undefined}>Map</a>
+				<button class="theme-toggle" type="button" aria-label="Toggle theme">☾</button>
+			</div>
 		</header>
-		<main class="shell">
+		<main class={fullBleed ? "" : "shell"}>
 			<slot />
 		</main>
-		<footer class="shell">
-			Built as a kura demo. Every listing on this site is fictional, kept in a
-			<code>kura</code> project and fetched from
-			<code>kuracms.com/api/v1/property/listing</code>. The site code lives at
-			<a href="https://github.com/kuracms/kura-property-website-example">github.com/kuracms/kura-property-website-example</a>.
-		</footer>
+		{!fullBleed && (
+			<footer class="shell">
+				Built as a kura demo. Every listing here is fictional, kept in a
+				<code>kura</code> project and fetched from
+				<code>kuracms.com/api/v1/property/listing</code>. The site code is at
+				<a href="https://github.com/kuracms/kura-property-website-example">github.com/kuracms/kura-property-website-example</a>.
+				Photos sourced from <a href="https://akiyahopper.com">akiyahopper.com</a>.
+			</footer>
+		)}
 	</body>
 </html>
