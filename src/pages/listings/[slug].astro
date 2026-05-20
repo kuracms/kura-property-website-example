@@ -1,0 +1,103 @@
+---
+import Base from "../../layouts/Base.astro";
+import { fetchListing, formatJpy, statusLabel, type KuraEnv } from "../../lib/kura";
+
+const env = Astro.locals.runtime?.env as KuraEnv | undefined;
+const { slug } = Astro.params;
+const listing = await fetchListing(env ?? {}, slug ?? "");
+if (!listing) return new Response("Not found", { status: 404 });
+---
+
+<Base title={`${listing.title} - Inaka`} description={listing.description}>
+	<article>
+		<p class="back"><a href="/">← All listings</a></p>
+		<header>
+			<p class="loc">{listing.location} · <span class={`status status-${listing.status}`}>{statusLabel(listing.status)}</span></p>
+			<h1>{listing.title}</h1>
+		</header>
+
+		<dl class="facts">
+			<div><dt>Price</dt><dd>{formatJpy(listing.price_jpy)}</dd></div>
+			{listing.bedrooms != null && <div><dt>Bedrooms</dt><dd>{listing.bedrooms}</dd></div>}
+			{listing.square_meters != null && <div><dt>Floor area</dt><dd>{listing.square_meters} m²</dd></div>}
+			{listing.build_year != null && <div><dt>Built</dt><dd>{listing.build_year}</dd></div>}
+		</dl>
+
+		{listing.description && (
+			<section class="body">
+				<p>{listing.description}</p>
+			</section>
+		)}
+	</article>
+</Base>
+
+<style>
+	article {
+		padding: 1rem 0 4rem;
+		max-width: 42rem;
+	}
+	.back {
+		font-size: 0.9rem;
+		margin: 0 0 1.5rem;
+	}
+	.back a {
+		color: var(--muted);
+		text-decoration: none;
+	}
+	.loc {
+		color: var(--muted);
+		font-size: 0.9rem;
+		margin: 0 0 0.5rem;
+	}
+	h1 {
+		font-size: clamp(1.9rem, 4.5vw, 2.6rem);
+		letter-spacing: -0.02em;
+		margin: 0 0 1.5rem;
+		line-height: 1.1;
+	}
+	.status {
+		display: inline-block;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding: 0.15rem 0.5rem;
+		border-radius: 4px;
+		background: var(--accent);
+		color: #fff;
+	}
+	.status.status-sold {
+		background: #807a72;
+	}
+	.status.status-under_offer {
+		background: #7b5e3d;
+	}
+	.facts {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+		gap: 1rem;
+		padding: 1.5rem 0;
+		border-top: 1px solid var(--line);
+		border-bottom: 1px solid var(--line);
+		margin: 0 0 2rem;
+	}
+	.facts > div {
+		font-size: 1rem;
+	}
+	dt {
+		color: var(--faint);
+		font-size: 0.75rem;
+		margin: 0 0 0.2rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	dd {
+		margin: 0;
+		font-size: 1.1rem;
+	}
+	.body p {
+		line-height: 1.7;
+		color: #2a2926;
+		font-size: 1.05rem;
+		margin: 0;
+	}
+</style>

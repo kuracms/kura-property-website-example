@@ -1,0 +1,21 @@
+{
+  "name": "kura-property-website-example",
+  "version": "0.1.0",
+  "description": "Example Astro site reading from a kura content backend. Renders a property listings site at property.kuracms.com.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler pages deploy ./dist --project-name=kura-property-example"
+  },
+  "dependencies": {
+    "astro": "^5.16.0",
+    "@astrojs/cloudflare": "^12.5.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0",
+    "typescript": "^5.9.0"
+  }
+}

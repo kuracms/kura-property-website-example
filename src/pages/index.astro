@@ -1,0 +1,133 @@
+---
+import Base from "../layouts/Base.astro";
+import { fetchListings, formatJpy, statusLabel, type KuraEnv } from "../lib/kura";
+
+const env = Astro.locals.runtime?.env as KuraEnv | undefined;
+const listings = await fetchListings(env ?? {}, {
+	sort: "price_jpy:asc",
+	limit: 20,
+});
+---
+
+<Base title="Inaka - countryside houses for sale in Japan">
+	<section class="hero">
+		<h1>Country houses, slowly chosen.</h1>
+		<p>
+			A small list of vacant houses and akiya in rural Japan, each one written up by
+			hand. Fictional demo - real homes will live here when this is a real site.
+		</p>
+	</section>
+
+	<section class="grid">
+		{listings.map((l) => (
+			<a class="card" href={`/listings/${l.slug}`}>
+				<div class={`thumb status-${l.status}`}>
+					<span class="loc">{l.location}</span>
+					<span class="status">{statusLabel(l.status)}</span>
+				</div>
+				<h2>{l.title}</h2>
+				<dl>
+					<div><dt>Price</dt><dd>{formatJpy(l.price_jpy)}</dd></div>
+					{l.bedrooms && <div><dt>Beds</dt><dd>{l.bedrooms}</dd></div>}
+					{l.square_meters && <div><dt>Floor</dt><dd>{l.square_meters} m²</dd></div>}
+					{l.build_year && <div><dt>Built</dt><dd>{l.build_year}</dd></div>}
+				</dl>
+			</a>
+		))}
+	</section>
+</Base>
+
+<style>
+	.hero {
+		padding: 2rem 0 3rem;
+		max-width: 36rem;
+	}
+	.hero h1 {
+		font-size: clamp(2rem, 5vw, 3rem);
+		letter-spacing: -0.02em;
+		margin: 0 0 1rem;
+		line-height: 1.05;
+	}
+	.hero p {
+		color: var(--muted);
+		line-height: 1.55;
+		margin: 0;
+	}
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+		gap: 1.5rem;
+	}
+	.card {
+		text-decoration: none;
+		color: inherit;
+		background: var(--card);
+		border: 1px solid var(--line);
+		border-radius: 10px;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		transition: transform 0.12s ease;
+	}
+	.card:hover {
+		transform: translateY(-2px);
+	}
+	.thumb {
+		aspect-ratio: 4 / 3;
+		background:
+			linear-gradient(135deg, #2f3a32 0%, #46584b 50%, #6e7d6e 100%);
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+		padding: 0.75rem 1rem;
+		color: #fff;
+	}
+	.thumb.status-sold {
+		background:
+			linear-gradient(135deg, #5a5650 0%, #807a72 50%, #aaa39a 100%);
+	}
+	.thumb.status-under_offer {
+		background:
+			linear-gradient(135deg, #5f4830 0%, #7b5e3d 50%, #a0825a 100%);
+	}
+	.loc {
+		font-size: 0.85rem;
+		opacity: 0.9;
+		letter-spacing: 0.02em;
+	}
+	.status {
+		align-self: flex-start;
+		background: rgba(255, 255, 255, 0.15);
+		backdrop-filter: blur(6px);
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
+	}
+	h2 {
+		font-size: 1.1rem;
+		margin: 1rem 1.1rem 0.5rem;
+		line-height: 1.3;
+		letter-spacing: -0.01em;
+	}
+	dl {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.4rem 0.75rem;
+		margin: 0 1.1rem 1rem;
+		padding: 0;
+	}
+	dl > div {
+		font-size: 0.85rem;
+	}
+	dt {
+		color: var(--faint);
+		font-size: 0.75rem;
+		margin-bottom: 0.1rem;
+	}
+	dd {
+		margin: 0;
+		color: var(--fg);
+	}
+</style>

@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kura-property-example",
+  "main": "./dist/_worker.js/index.js",
+  "compatibility_date": "2026-05-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "KURA_BASE_URL": "https://kuracms.com",
+    "KURA_PROJECT": "property"
+  },
+  "routes": [
+    { "pattern": "property.kuracms.com", "custom_domain": true, "zone_name": "kuracms.com" }
+  ]
+}

@@ -1,0 +1,100 @@
+---
+interface Props {
+	title?: string;
+	description?: string;
+}
+const { title = "Inaka", description = "Country houses for sale in Japan." } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<style is:global>
+			:root {
+				--bg: #faf8f4;
+				--fg: #1a1916;
+				--muted: #645d4f;
+				--faint: #999286;
+				--line: #e6e1d6;
+				--card: #fff;
+				--accent: #46584b;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				color: var(--fg);
+				background: var(--bg);
+				font-family:
+					ui-serif,
+					"Iowan Old Style",
+					Georgia,
+					serif;
+				-webkit-font-smoothing: antialiased;
+			}
+			a {
+				color: inherit;
+			}
+			.shell {
+				max-width: 60rem;
+				margin: 0 auto;
+				padding: 0 clamp(1.25rem, 5vw, 3rem);
+			}
+			.site-nav {
+				display: flex;
+				justify-content: space-between;
+				align-items: baseline;
+				padding: 1.75rem 0;
+			}
+			.brand {
+				font-size: 1.4rem;
+				font-weight: 700;
+				letter-spacing: -0.02em;
+				text-decoration: none;
+			}
+			.brand small {
+				font-weight: 400;
+				color: var(--muted);
+				font-style: italic;
+				margin-left: 0.3rem;
+				font-size: 0.85rem;
+			}
+			.site-nav a {
+				color: var(--muted);
+				text-decoration: none;
+				font-size: 0.95rem;
+			}
+			footer {
+				margin-top: 5rem;
+				padding: 2rem 0 3rem;
+				border-top: 1px solid var(--line);
+				color: var(--faint);
+				font-size: 0.85rem;
+			}
+			footer code {
+				font-family: ui-monospace, monospace;
+				font-size: 0.8rem;
+			}
+		</style>
+	</head>
+	<body>
+		<header class="site-nav shell">
+			<a class="brand" href="/">Inaka <small>countryside houses</small></a>
+			<nav><a href="/">All listings</a></nav>
+		</header>
+		<main class="shell">
+			<slot />
+		</main>
+		<footer class="shell">
+			Built as a kura demo. Every listing on this site is fictional, kept in a
+			<code>kura</code> project and fetched from
+			<code>kuracms.com/api/v1/property/listing</code>. The site code lives at
+			<a href="https://github.com/kuracms/kura-property-website-example">github.com/kuracms/kura-property-website-example</a>.
+		</footer>
+	</body>
+</html>
