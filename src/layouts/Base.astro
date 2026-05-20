@@ -19,15 +19,6 @@ const {
 		<title>{title}</title>
 		<meta name="description" content={description} />
 		<link rel="preconnect" href="https://images.akiyahopper.com" crossorigin />
-		<script is:inline>
-			// Apply theme before paint to avoid FOUC.
-			(() => {
-				const s = localStorage.getItem("inaka-theme");
-				const prefers = window.matchMedia("(prefers-color-scheme: dark)").matches;
-				const t = s ?? (prefers ? "dark" : "light");
-				if (t === "dark") document.documentElement.dataset.theme = "dark";
-			})();
-		</script>
 		<style is:global>
 			:root {
 				--bg: #faf7f1;
@@ -41,19 +32,6 @@ const {
 				--badge-available: #2f4737;
 				--badge-under-offer: #8b5a2b;
 				--badge-sold: #6b6660;
-			}
-			:root[data-theme="dark"] {
-				--bg: #14130f;
-				--fg: #f3efe5;
-				--muted: #aaa294;
-				--faint: #6f6a5d;
-				--line: #2a2823;
-				--card: #1b1a16;
-				--accent: #9fbfa5;
-				--accent-soft: rgba(159, 191, 165, 0.12);
-				--badge-available: #9fbfa5;
-				--badge-under-offer: #c79a6d;
-				--badge-sold: #8e887d;
 			}
 			* {
 				box-sizing: border-box;
@@ -107,7 +85,7 @@ const {
 			.nav-links {
 				display: flex;
 				align-items: center;
-				gap: 1.25rem;
+				gap: 1.5rem;
 			}
 			.nav-links a {
 				color: var(--muted);
@@ -116,25 +94,6 @@ const {
 			}
 			.nav-links a:hover,
 			.nav-links a[aria-current="page"] {
-				color: var(--fg);
-			}
-			.theme-toggle {
-				background: transparent;
-				border: 1px solid var(--line);
-				color: var(--muted);
-				border-radius: 999px;
-				width: 2.2rem;
-				height: 2.2rem;
-				cursor: pointer;
-				display: grid;
-				place-items: center;
-				font-size: 0.95rem;
-				transition:
-					border-color 0.15s,
-					color 0.15s;
-			}
-			.theme-toggle:hover {
-				border-color: var(--fg);
 				color: var(--fg);
 			}
 			footer {
@@ -160,29 +119,10 @@ const {
 					display: none;
 				}
 				.nav-links {
-					gap: 0.85rem;
+					gap: 1.1rem;
 				}
 			}
 		</style>
-		<script is:inline>
-			document.addEventListener("DOMContentLoaded", () => {
-				const btn = document.querySelector(".theme-toggle");
-				if (!btn) return;
-				const update = () => {
-					const t = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-					btn.textContent = t === "dark" ? "☀" : "☾";
-				};
-				update();
-				btn.addEventListener("click", () => {
-					const cur = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-					const next = cur === "dark" ? "light" : "dark";
-					if (next === "dark") document.documentElement.dataset.theme = "dark";
-					else delete document.documentElement.dataset.theme;
-					localStorage.setItem("inaka-theme", next);
-					update();
-				});
-			});
-		</script>
 	</head>
 	<body>
 		<header class={fullBleed ? "site-nav" : "site-nav shell"} style={fullBleed ? "padding-left: clamp(1rem, 4vw, 2.5rem); padding-right: clamp(1rem, 4vw, 2.5rem)" : ""}>
@@ -192,7 +132,6 @@ const {
 			<div class="nav-links">
 				<a href="/" aria-current={Astro.url.pathname === "/" ? "page" : undefined}>Listings</a>
 				<a href="/map" aria-current={Astro.url.pathname === "/map" ? "page" : undefined}>Map</a>
-				<button class="theme-toggle" type="button" aria-label="Toggle theme">☾</button>
 			</div>
 		</header>
 		<main class={fullBleed ? "" : "shell"}>
