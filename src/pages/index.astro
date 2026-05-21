@@ -7,8 +7,10 @@ import {
 	prefectureLabel,
 	readDemoOverride,
 	serializeDemoOverride,
+	isDeadProjectError,
 	type KuraEnv,
 	type Listing,
+	type DemoOverride,
 } from "../lib/kura";
 
 const env = Astro.locals.runtime?.env as KuraEnv | undefined;
@@ -16,7 +18,7 @@ const url = Astro.url;
 const params = url.searchParams;
 
 const cookieHeader = Astro.request.headers.get("cookie") ?? undefined;
-const override = readDemoOverride(url, cookieHeader);
+let override: DemoOverride | undefined = readDemoOverride(url, cookieHeader);
 // Tell browsers and any intermediate cache to revalidate on every request -
 // editors expect their changes to show on next page load without Ctrl+Shift+R.
 Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
@@ -48,7 +50,20 @@ let loadError: string | null = null;
 try {
 	listings = await fetchListings(env ?? {}, query, override);
 } catch (e) {
-	loadError = e instanceof Error ? e.message : "Failed to load";
+	// If the override came from a stale cookie (sandbox expired), drop the
+	// cookie and retry against the canonical project. The visitor sees the
+	// public site instead of a 404.
+	if (override?.source === "cookie" && isDeadProjectError(e)) {
+		Astro.cookies.delete("kura_demo_preview", { path: "/" });
+		override = undefined;
+		try {
+			listings = await fetchListings(env ?? {}, query, undefined);
+		} catch (e2) {
+			loadError = e2 instanceof Error ? e2.message : "Failed to load";
+		}
+	} else {
+		loadError = e instanceof Error ? e.message : "Failed to load";
+	}
 }
 
 // Build the prefecture dropdown from the actual data

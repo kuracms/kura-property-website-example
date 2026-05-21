@@ -84,6 +84,17 @@ export async function fetchListing(
   return resolveMedia(body.data, c.base);
 }
 
+export interface DemoOverride {
+  project?: string;
+  token?: string;
+  group?: string;
+  // "url" means the visitor passed ?project=...&token=... in this request -
+  // trust it. "cookie" means it came from a prior demo session and may be
+  // stale (the sandbox has a 1h TTL and the cookie is 24h), so we should be
+  // ready to drop it on a 404. Undefined when no override applies.
+  source?: "url" | "cookie";
+}
+
 // Read override from a URL or a cookie value. URL wins on first navigation,
 // then we persist it in the cookie so subsequent requests carry it through.
 // `group` is a separate URL parameter (always taken fresh from the URL, never
@@ -91,12 +102,13 @@ export async function fetchListing(
 export function readDemoOverride(
   url: URL,
   cookieHeader: string | undefined,
-): { project?: string; token?: string; group?: string } | undefined {
+): DemoOverride | undefined {
   const groupParam = url.searchParams.get("group") || undefined;
-  const fromUrl = {
+  const fromUrl: DemoOverride = {
     project: url.searchParams.get("project") || undefined,
     token: url.searchParams.get("token") || undefined,
     group: groupParam,
+    source: "url",
   };
   if (fromUrl.project && fromUrl.token) return fromUrl;
   if (!cookieHeader) return groupParam ? { group: groupParam } : undefined;
@@ -105,13 +117,22 @@ export function readDemoOverride(
   try {
     const parsed = JSON.parse(decodeURIComponent(m[1])) as { project?: string; token?: string };
     return parsed.project && parsed.token
-      ? { ...parsed, group: groupParam }
+      ? { ...parsed, group: groupParam, source: "cookie" }
       : groupParam
         ? { group: groupParam }
         : undefined;
   } catch {
     return groupParam ? { group: groupParam } : undefined;
   }
+}
+
+// True when an error string from fetchListings/fetchListing indicates the
+// project itself isn't there - i.e. the override is dead and should be
+// cleared. 404 from kura's /api/v1/{project}/... means "no project of that
+// slug exists".
+export function isDeadProjectError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /^kura 404\b/.test(err.message) || /^kura 401\b/.test(err.message);
 }
 
 export function serializeDemoOverride(over: { project?: string; token?: string }): string {

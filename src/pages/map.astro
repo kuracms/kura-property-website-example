@@ -1,12 +1,23 @@
 ---
 import Base from "../layouts/Base.astro";
-import { fetchListings, formatJpy, readDemoOverride, type KuraEnv, type Listing } from "../lib/kura";
+import { fetchListings, formatJpy, readDemoOverride, isDeadProjectError, type KuraEnv, type Listing, type DemoOverride } from "../lib/kura";
 
 const env = Astro.locals.runtime?.env as KuraEnv | undefined;
 const cookieHeader = Astro.request.headers.get("cookie") ?? undefined;
-const override = readDemoOverride(Astro.url, cookieHeader);
+let override: DemoOverride | undefined = readDemoOverride(Astro.url, cookieHeader);
 Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
-const all = await fetchListings(env ?? {}, { limit: 100 }, override);
+let all: Listing[] = [];
+try {
+	all = await fetchListings(env ?? {}, { limit: 100 }, override);
+} catch (e) {
+	if (override?.source === "cookie" && isDeadProjectError(e)) {
+		Astro.cookies.delete("kura_demo_preview", { path: "/" });
+		override = undefined;
+		all = await fetchListings(env ?? {}, { limit: 100 }, undefined);
+	} else {
+		throw e;
+	}
+}
 const withGeo = all.filter((l) => l.latitude != null && l.longitude != null);
 const points = withGeo.map((l) => ({
 	slug: l.slug,

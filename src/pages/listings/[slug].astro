@@ -6,15 +6,29 @@ import {
 	statusLabel,
 	prefectureLabel,
 	readDemoOverride,
+	isDeadProjectError,
 	type KuraEnv,
+	type DemoOverride,
 } from "../../lib/kura";
 
 const env = Astro.locals.runtime?.env as KuraEnv | undefined;
 const { slug } = Astro.params;
 const cookieHeader = Astro.request.headers.get("cookie") ?? undefined;
-const override = readDemoOverride(Astro.url, cookieHeader);
+let override: DemoOverride | undefined = readDemoOverride(Astro.url, cookieHeader);
 Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
-const listing = await fetchListing(env ?? {}, slug ?? "", override);
+
+let listing = null;
+try {
+	listing = await fetchListing(env ?? {}, slug ?? "", override);
+} catch (e) {
+	if (override?.source === "cookie" && isDeadProjectError(e)) {
+		Astro.cookies.delete("kura_demo_preview", { path: "/" });
+		override = undefined;
+		listing = await fetchListing(env ?? {}, slug ?? "", undefined);
+	} else {
+		throw e;
+	}
+}
 if (!listing) return new Response("Not found", { status: 404 });
 
 const photos = [listing.hero_image, listing.photo_2, listing.photo_3].filter(
