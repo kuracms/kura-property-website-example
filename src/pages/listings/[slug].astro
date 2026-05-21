@@ -5,12 +5,16 @@ import {
 	formatJpy,
 	statusLabel,
 	prefectureLabel,
+	readDemoOverride,
 	type KuraEnv,
 } from "../../lib/kura";
 
 const env = Astro.locals.runtime?.env as KuraEnv | undefined;
 const { slug } = Astro.params;
-const listing = await fetchListing(env ?? {}, slug ?? "");
+const cookieHeader = Astro.request.headers.get("cookie") ?? undefined;
+const override = readDemoOverride(Astro.url, cookieHeader);
+Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
+const listing = await fetchListing(env ?? {}, slug ?? "", override);
 if (!listing) return new Response("Not found", { status: 404 });
 
 const photos = [listing.hero_image, listing.photo_2, listing.photo_3].filter(
@@ -26,7 +30,7 @@ const hasGeo = listing.latitude != null && listing.longitude != null;
 	<article>
 		<nav class="crumb">
 			<a href="/">Inaka</a> ›
-			<a href={`/?prefecture=${listing.prefecture}`}>{prefectureLabel(listing.prefecture)}</a> ›
+			<a href={`/?prefecture=${listing.prefecture_slug}`}>{prefectureLabel(listing.prefecture_slug)}</a> ›
 			<span>{listing.location.split(",")[0]}</span>
 		</nav>
 
@@ -40,17 +44,24 @@ const hasGeo = listing.latitude != null && listing.longitude != null;
 		</header>
 
 		{photos.length > 0 && (
-			<section class={`gallery gallery-${photos.length}`}>
-				<a class="g-main" href={photos[0]} target="_blank" rel="noreferrer">
+			<section class={`gallery gallery-${photos.length}`} data-lightbox-gallery>
+				<button class="g-main" type="button" data-photo={photos[0]} data-index="0">
 					<img src={photos[0]} alt={listing.title} />
-				</a>
-				{photos.slice(1).map((p) => (
-					<a class="g-thumb" href={p} target="_blank" rel="noreferrer">
+				</button>
+				{photos.slice(1).map((p, i) => (
+					<button class="g-thumb" type="button" data-photo={p} data-index={String(i + 1)}>
 						<img src={p} alt={listing.title} loading="lazy" />
-					</a>
+					</button>
 				))}
 			</section>
 		)}
+
+		<div id="lightbox" hidden aria-hidden="true" role="dialog">
+			<button class="lb-close" type="button" aria-label="Close">×</button>
+			<button class="lb-prev" type="button" aria-label="Previous">‹</button>
+			<img id="lb-image" alt="" />
+			<button class="lb-next" type="button" aria-label="Next">›</button>
+		</div>
 
 		<dl class="facts">
 			{listing.layout && <div><dt>Layout</dt><dd>{listing.layout}</dd></div>}
@@ -60,9 +71,19 @@ const hasGeo = listing.latitude != null && listing.longitude != null;
 			{listing.build_year != null && <div><dt>Built</dt><dd>{listing.build_year}</dd></div>}
 		</dl>
 
-		{listing.description && (
+		{(listing.description || listing.floor_plan) && (
 			<section class="body">
-				<p>{listing.description}</p>
+				<div class="body-text">
+					{listing.description && <p>{listing.description}</p>}
+				</div>
+				{listing.floor_plan && (
+					<aside class="floor-plan" data-lightbox-gallery-plan>
+						<p class="floor-plan-label">Floor plan</p>
+						<button class="fp-btn" type="button" data-photo={listing.floor_plan}>
+							<img src={listing.floor_plan} alt={`Floor plan - ${listing.title}`} loading="lazy" />
+						</button>
+					</aside>
+				)}
 			</section>
 		)}
 
@@ -84,6 +105,53 @@ const hasGeo = listing.latitude != null && listing.longitude != null;
 </Base>
 
 <script>
+	const galleryBtns = Array.from(
+		document.querySelectorAll<HTMLButtonElement>("[data-lightbox-gallery] button"),
+	);
+	const planBtn = document.querySelector<HTMLButtonElement>(".fp-btn");
+	const photos = galleryBtns.map((b) => b.dataset.photo ?? "");
+	if (planBtn?.dataset.photo) photos.push(planBtn.dataset.photo);
+	const lb = document.getElementById("lightbox") as HTMLDivElement | null;
+	const lbImg = document.getElementById("lb-image") as HTMLImageElement | null;
+	let lbIndex = 0;
+
+	function showLightbox(i: number) {
+		if (!lb || !lbImg || photos.length === 0) return;
+		lbIndex = (i + photos.length) % photos.length;
+		lbImg.src = photos[lbIndex];
+		lb.hidden = false;
+		lb.setAttribute("aria-hidden", "false");
+		document.body.style.overflow = "hidden";
+	}
+	function hideLightbox() {
+		if (!lb) return;
+		lb.hidden = true;
+		lb.setAttribute("aria-hidden", "true");
+		document.body.style.overflow = "";
+	}
+	galleryBtns.forEach((btn) => {
+		btn.addEventListener("click", () => showLightbox(Number(btn.dataset.index ?? 0)));
+	});
+	planBtn?.addEventListener("click", () => showLightbox(photos.length - 1));
+	lb?.querySelector(".lb-close")?.addEventListener("click", hideLightbox);
+	lb?.querySelector(".lb-prev")?.addEventListener("click", (e) => {
+		e.stopPropagation();
+		showLightbox(lbIndex - 1);
+	});
+	lb?.querySelector(".lb-next")?.addEventListener("click", (e) => {
+		e.stopPropagation();
+		showLightbox(lbIndex + 1);
+	});
+	lb?.addEventListener("click", (e) => {
+		if (e.target === lb) hideLightbox();
+	});
+	document.addEventListener("keydown", (e) => {
+		if (lb?.hidden) return;
+		if (e.key === "Escape") hideLightbox();
+		else if (e.key === "ArrowLeft") showLightbox(lbIndex - 1);
+		else if (e.key === "ArrowRight") showLightbox(lbIndex + 1);
+	});
+
 	import maplibregl from "maplibre-gl";
 	const el = document.getElementById("mini-map") as HTMLDivElement | null;
 	if (el) {
@@ -190,6 +258,17 @@ const hasGeo = listing.latitude != null && listing.longitude != null;
 		display: block;
 		overflow: hidden;
 		background: var(--accent-soft);
+		border: 0;
+		padding: 0;
+		cursor: zoom-in;
+		font: inherit;
+		color: inherit;
+		position: relative;
+	}
+	.g-main:focus-visible,
+	.g-thumb:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
 	}
 	.g-main {
 		grid-row: 1 / 3;
@@ -233,11 +312,69 @@ const hasGeo = listing.latitude != null && listing.longitude != null;
 		font-size: 1.15rem;
 		font-weight: 500;
 	}
-	.body p {
+	.body {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 2.5rem;
+		align-items: start;
+		margin: 0 0 3rem;
+	}
+	.body-text {
+		max-width: 42rem;
+	}
+	.body-text p {
 		line-height: 1.75;
 		font-size: 1.05rem;
-		max-width: 42rem;
-		margin: 0 0 3rem;
+		margin: 0;
+	}
+	.floor-plan {
+		width: 18rem;
+		flex-shrink: 0;
+	}
+	.floor-plan-label {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--muted);
+		margin: 0 0 0.5rem;
+		font-weight: 500;
+	}
+	.fp-btn {
+		display: block;
+		width: 100%;
+		padding: 0.6rem;
+		border: 1px solid var(--line);
+		border-radius: 8px;
+		background: #fff;
+		cursor: zoom-in;
+		font: inherit;
+		color: inherit;
+		transition:
+			border-color 0.15s,
+			box-shadow 0.15s;
+	}
+	.fp-btn:hover,
+	.fp-btn:focus-visible {
+		border-color: var(--accent);
+		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+		outline: none;
+	}
+	.fp-btn img {
+		display: block;
+		width: 100%;
+		height: auto;
+		max-height: 18rem;
+		object-fit: contain;
+	}
+	@media (max-width: 760px) {
+		.body {
+			grid-template-columns: 1fr;
+			gap: 2rem;
+		}
+		.floor-plan {
+			width: 100%;
+			max-width: 22rem;
+		}
 	}
 	.map-block h2 {
 		font-size: 1.1rem;
@@ -260,6 +397,61 @@ const hasGeo = listing.latitude != null && listing.longitude != null;
 		color: var(--accent);
 		text-decoration: underline;
 		text-underline-offset: 3px;
+	}
+	#lightbox {
+		position: fixed;
+		inset: 0;
+		background: rgba(20, 18, 14, 0.92);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		padding: clamp(1rem, 4vw, 3rem);
+	}
+	#lightbox[hidden] {
+		display: none;
+	}
+	#lb-image {
+		max-width: 100%;
+		max-height: 100%;
+		object-fit: contain;
+		display: block;
+		border-radius: 4px;
+		box-shadow: 0 10px 60px rgba(0, 0, 0, 0.4);
+	}
+	#lightbox button {
+		background: rgba(0, 0, 0, 0.45);
+		color: #fff;
+		border: 0;
+		font-size: 1.5rem;
+		line-height: 1;
+		width: 2.6rem;
+		height: 2.6rem;
+		border-radius: 50%;
+		cursor: pointer;
+		position: absolute;
+		font-family: ui-sans-serif, system-ui, sans-serif;
+		transition: background 0.15s;
+	}
+	#lightbox button:hover,
+	#lightbox button:focus-visible {
+		background: rgba(0, 0, 0, 0.75);
+		outline: none;
+	}
+	#lightbox .lb-close {
+		top: 1.25rem;
+		right: 1.25rem;
+		font-size: 1.6rem;
+	}
+	#lightbox .lb-prev {
+		left: 1.25rem;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+	#lightbox .lb-next {
+		right: 1.25rem;
+		top: 50%;
+		transform: translateY(-50%);
 	}
 	@media (max-width: 600px) {
 		.gallery {

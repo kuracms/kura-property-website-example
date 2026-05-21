@@ -5,7 +5,8 @@ import {
 	formatJpy,
 	statusLabel,
 	prefectureLabel,
-	PREFECTURES,
+	readDemoOverride,
+	serializeDemoOverride,
 	type KuraEnv,
 	type Listing,
 } from "../lib/kura";
@@ -14,38 +15,71 @@ const env = Astro.locals.runtime?.env as KuraEnv | undefined;
 const url = Astro.url;
 const params = url.searchParams;
 
+const cookieHeader = Astro.request.headers.get("cookie") ?? undefined;
+const override = readDemoOverride(url, cookieHeader);
+// Tell browsers and any intermediate cache to revalidate on every request -
+// editors expect their changes to show on next page load without Ctrl+Shift+R.
+Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
+// Persist override so the visitor can navigate without re-passing the query
+if (override && url.searchParams.has("project") && url.searchParams.has("token")) {
+	Astro.cookies.set("kura_demo_preview", serializeDemoOverride(override), {
+		path: "/",
+		httpOnly: false,
+		sameSite: "lax",
+		secure: url.protocol === "https:",
+		maxAge: 60 * 60 * 24,
+	});
+}
+
 const status = params.get("status") ?? "";
-const prefecture = params.get("prefecture") ?? "";
+const prefSlug = params.get("prefecture") ?? "";
 const minPrice = params.get("min") ?? "";
 const maxPrice = params.get("max") ?? "";
 const sort = params.get("sort") || "price_jpy:asc";
 
-const query: Record<string, string | number> = { sort, limit: 30 };
+const query: Record<string, string | number> = { sort, limit: 50 };
 if (status) query.status = status;
-if (prefecture) query.prefecture = prefecture;
+if (prefSlug) query.prefecture_slug = prefSlug;
 if (minPrice) query["price_jpy[gte]"] = Number(minPrice);
 if (maxPrice) query["price_jpy[lte]"] = Number(maxPrice);
 
 let listings: Listing[] = [];
 let loadError: string | null = null;
 try {
-	listings = await fetchListings(env ?? {}, query);
+	listings = await fetchListings(env ?? {}, query, override);
 } catch (e) {
 	loadError = e instanceof Error ? e.message : "Failed to load";
 }
 
+// Build the prefecture dropdown from the actual data
+let allPrefs: { slug: string; label: string }[] = [];
+try {
+	const all = await fetchListings(env ?? {}, { limit: 100 }, override);
+	const set = new Map<string, string>();
+	for (const l of all) {
+		if (l.prefecture_slug && !set.has(l.prefecture_slug)) {
+			set.set(l.prefecture_slug, prefectureLabel(l.prefecture_slug));
+		}
+	}
+	allPrefs = [...set.entries()]
+		.map(([slug, label]) => ({ slug, label }))
+		.sort((a, b) => a.label.localeCompare(b.label));
+} catch {}
+
 const totalAvailable = listings.filter((l) => l.status === "available").length;
-const anyFilter = !!(status || prefecture || minPrice || maxPrice);
+const anyFilter = !!(status || prefSlug || minPrice || maxPrice);
 ---
 
-<Base title="Inaka - country houses in Japan">
+<Base title="Inaka Properties - vacant houses for sale in rural Japan">
 	<section class="hero">
-		<p class="eyebrow">Demo · {listings.length} listings · {totalAvailable} available</p>
-		<h1>Country houses, slowly chosen.</h1>
+		<p class="eyebrow">{listings.length} listings · {totalAvailable} available</p>
+		<h1>Vacant houses for sale across rural Japan.</h1>
 		<p class="lede">
-			Vacant houses and akiya in rural Japan, each written up by hand. Every listing on this
-			site is fictional - it lives in a <a href="https://kuracms.com">kura</a> project so a
-			non-technical editor could change any of it in seconds.
+			Properties from every corner of the country, listed for sale through
+			Inaka. This is a demonstration site backed by
+			<a href="https://kuracms.com">kura</a> - the listings, descriptions and
+			prices are fictitious, but the frontend and the admin interface
+			are real working software.
 		</p>
 	</section>
 
@@ -63,8 +97,8 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 			<span>Prefecture</span>
 			<select name="prefecture">
 				<option value="">All</option>
-				{PREFECTURES.map((p) => (
-					<option value={p.value} selected={prefecture === p.value}>{p.label}</option>
+				{allPrefs.map((p) => (
+					<option value={p.slug} selected={prefSlug === p.slug}>{p.label}</option>
 				))}
 			</select>
 		</label>
@@ -81,9 +115,10 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 			<select name="sort">
 				<option value="price_jpy:asc" selected={sort === "price_jpy:asc"}>Price low to high</option>
 				<option value="price_jpy:desc" selected={sort === "price_jpy:desc"}>Price high to low</option>
+				<option value="land_area_sqm:desc" selected={sort === "land_area_sqm:desc"}>Largest land</option>
+				<option value="square_meters:desc" selected={sort === "square_meters:desc"}>Largest building</option>
 				<option value="build_year:desc" selected={sort === "build_year:desc"}>Newer first</option>
 				<option value="build_year:asc" selected={sort === "build_year:asc"}>Older first</option>
-				<option value="square_meters:desc" selected={sort === "square_meters:desc"}>Larger first</option>
 			</select>
 		</label>
 		<div class="filter-actions">
@@ -110,7 +145,7 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 					<span class={`status status-${l.status}`}>{statusLabel(l.status)}</span>
 				</div>
 				<div class="body">
-					<p class="loc">{prefectureLabel(l.prefecture)} · {l.location.split(",")[0]}</p>
+					<p class="loc">{l.location}</p>
 					<h2>{l.title}</h2>
 					<p class="price">{formatJpy(l.price_jpy)}</p>
 					<dl>
@@ -127,26 +162,27 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 
 <style>
 	.hero {
-		padding: 2rem 0 3rem;
-		max-width: 40rem;
+		padding: 3rem 0 3.5rem;
+		max-width: 44rem;
 	}
 	.eyebrow {
 		font-size: 0.78rem;
 		color: var(--faint);
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
+		letter-spacing: 0.12em;
 		margin: 0 0 1rem;
 	}
 	.hero h1 {
-		font-size: clamp(2.2rem, 5.5vw, 3.4rem);
-		margin: 0 0 1rem;
-		line-height: 1.04;
+		font-size: clamp(2.2rem, 5vw, 3.3rem);
+		margin: 0 0 1.25rem;
+		line-height: 1.05;
 	}
 	.lede {
 		color: var(--muted);
-		line-height: 1.6;
+		line-height: 1.65;
 		font-size: 1.05rem;
 		margin: 0;
+		max-width: 38rem;
 	}
 	.lede a {
 		color: var(--accent);
@@ -157,57 +193,93 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
 		gap: 0.75rem 1rem;
-		padding: 1rem 1.25rem;
+		padding: 1.1rem 1.35rem;
 		background: var(--card);
 		border: 1px solid var(--line);
-		border-radius: 12px;
-		margin-bottom: 2rem;
+		border-radius: 14px;
+		margin-bottom: 2.5rem;
 		align-items: end;
 	}
 	.filters label {
 		display: flex;
 		flex-direction: column;
-		gap: 0.3rem;
+		gap: 0.35rem;
 		font-size: 0.85rem;
+		position: relative;
 	}
 	.filters label > span {
 		color: var(--muted);
-		font-size: 0.72rem;
+		font-size: 0.7rem;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.1em;
+		font-weight: 500;
 	}
 	.filters input,
 	.filters select {
 		font: inherit;
-		padding: 0.45rem 0.6rem;
+		padding: 0.5rem 0.65rem;
 		background: var(--bg);
 		color: var(--fg);
 		border: 1px solid var(--line);
-		border-radius: 7px;
+		border-radius: 8px;
+		transition: border-color 0.15s;
+	}
+	.filters select {
+		appearance: none;
+		-webkit-appearance: none;
+		-moz-appearance: none;
+		padding-right: 1.8rem;
+		cursor: pointer;
+	}
+	.filters label:has(> select)::after {
+		content: "";
+		position: absolute;
+		right: 0.85rem;
+		bottom: 1rem;
+		width: 0.45rem;
+		height: 0.45rem;
+		border-right: 1.6px solid var(--muted);
+		border-bottom: 1.6px solid var(--muted);
+		transform: translateY(-50%) rotate(45deg);
+		pointer-events: none;
+	}
+	.filters input:focus,
+	.filters select:focus {
+		outline: none;
+		border-color: var(--accent);
 	}
 	.filter-actions {
 		display: flex;
-		gap: 0.75rem;
+		gap: 0.85rem;
 		align-items: center;
 	}
 	.filter-actions button {
 		background: var(--accent);
 		color: var(--card);
 		border: 0;
-		padding: 0.55rem 1.1rem;
-		border-radius: 7px;
+		padding: 0.6rem 1.25rem;
+		border-radius: 8px;
 		font: inherit;
+		font-weight: 500;
 		cursor: pointer;
+		transition: filter 0.15s;
+	}
+	.filter-actions button:hover {
+		filter: brightness(1.1);
 	}
 	.filter-actions a {
 		color: var(--muted);
 		font-size: 0.85rem;
 		text-decoration: none;
 	}
+	.filter-actions a:hover {
+		color: var(--fg);
+	}
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
 		gap: 1.5rem;
+		margin-bottom: 4rem;
 	}
 	.card {
 		text-decoration: none;
@@ -218,11 +290,15 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		transition: transform 0.15s ease, box-shadow 0.15s ease;
+		transition:
+			transform 0.18s ease,
+			box-shadow 0.18s ease,
+			border-color 0.18s ease;
 	}
 	.card:hover {
 		transform: translateY(-3px);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+		border-color: #d8d0bd;
 	}
 	.photo {
 		position: relative;
@@ -235,25 +311,29 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 		height: 100%;
 		object-fit: cover;
 		display: block;
+		transition: transform 0.5s ease;
+	}
+	.card:hover .photo img {
+		transform: scale(1.03);
 	}
 	.photo-placeholder {
 		width: 100%;
 		height: 100%;
-		background:
-			linear-gradient(135deg, var(--accent) 0%, var(--muted) 100%);
+		background: linear-gradient(135deg, var(--accent) 0%, var(--muted) 100%);
 	}
 	.status {
 		position: absolute;
-		top: 0.75rem;
-		left: 0.75rem;
+		top: 0.85rem;
+		left: 0.85rem;
 		background: var(--badge-available);
 		color: #fff;
 		font-size: 0.7rem;
 		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		padding: 0.25rem 0.55rem;
-		border-radius: 4px;
+		letter-spacing: 0.08em;
+		padding: 0.28rem 0.6rem;
+		border-radius: 5px;
 		font-weight: 600;
+		backdrop-filter: blur(8px);
 	}
 	.status-under_offer {
 		background: var(--badge-under-offer);
@@ -262,46 +342,48 @@ const anyFilter = !!(status || prefecture || minPrice || maxPrice);
 		background: var(--badge-sold);
 	}
 	.body {
-		padding: 1.1rem 1.25rem 1.25rem;
+		padding: 1.1rem 1.3rem 1.35rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.55rem;
 	}
 	.loc {
-		font-size: 0.78rem;
+		font-size: 0.75rem;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.1em;
 		color: var(--muted);
 		margin: 0;
+		font-weight: 500;
 	}
 	.card h2 {
-		font-size: 1.15rem;
+		font-size: 1.1rem;
 		margin: 0;
-		line-height: 1.3;
+		line-height: 1.35;
 	}
 	.price {
 		font-size: 1.15rem;
-		font-weight: 600;
-		margin: 0;
+		font-weight: 700;
+		margin: 0.1rem 0 0;
 		color: var(--accent);
 	}
 	dl {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
-		gap: 0.35rem 0.5rem;
-		margin: 0.3rem 0 0;
+		gap: 0.45rem 0.7rem;
+		margin: 0.4rem 0 0;
 		padding: 0;
 	}
 	dt {
 		color: var(--faint);
 		font-size: 0.7rem;
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		letter-spacing: 0.07em;
 		margin: 0;
 	}
 	dd {
 		margin: 0;
 		font-size: 0.9rem;
+		font-weight: 500;
 	}
 	.muted {
 		color: var(--muted);

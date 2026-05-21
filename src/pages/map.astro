@@ -1,18 +1,26 @@
 ---
 import Base from "../layouts/Base.astro";
-import { fetchListings, formatJpy, type KuraEnv, type Listing } from "../lib/kura";
+import { fetchListings, formatJpy, readDemoOverride, type KuraEnv, type Listing } from "../lib/kura";
 
 const env = Astro.locals.runtime?.env as KuraEnv | undefined;
-const all = await fetchListings(env ?? {}, { limit: 100 });
+const cookieHeader = Astro.request.headers.get("cookie") ?? undefined;
+const override = readDemoOverride(Astro.url, cookieHeader);
+Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
+const all = await fetchListings(env ?? {}, { limit: 100 }, override);
 const withGeo = all.filter((l) => l.latitude != null && l.longitude != null);
 const points = withGeo.map((l) => ({
 	slug: l.slug,
 	title: l.title,
+	location: l.location,
 	lat: l.latitude as number,
 	lon: l.longitude as number,
 	price: formatJpy(l.price_jpy),
 	hero: l.hero_image ?? "",
 	status: l.status,
+	layout: l.layout ?? null,
+	floor: l.square_meters ?? null,
+	land: l.land_area_sqm ?? null,
+	built: l.build_year ?? null,
 }));
 ---
 
@@ -27,13 +35,26 @@ const points = withGeo.map((l) => ({
 		type P = {
 			slug: string;
 			title: string;
+			location: string;
 			lat: number;
 			lon: number;
 			price: string;
 			hero: string;
 			status: string;
+			layout: string | null;
+			floor: number | null;
+			land: number | null;
+			built: number | null;
 		};
 		const points: P[] = JSON.parse(el.dataset.points);
+
+		// Place map flush against the header (no gap)
+		const header = document.querySelector(".site-header") as HTMLElement | null;
+		function placeMap() {
+			if (header && el) el.style.top = header.offsetHeight + "px";
+		}
+		placeMap();
+		window.addEventListener("resize", placeMap);
 
 		const focusSlug = new URLSearchParams(location.search).get("focus");
 		const focusPoint = points.find((p) => p.slug === focusSlug);
@@ -48,6 +69,12 @@ const points = withGeo.map((l) => ({
 
 		map.addControl(new maplibregl.NavigationControl(), "top-right");
 
+		function fact(label: string, val: string | number | null, suffix = ""): string {
+			if (val === null || val === undefined || val === "") return "";
+			const v = typeof val === "number" ? val.toLocaleString() : val;
+			return `<div><dt>${label}</dt><dd>${v}${suffix}</dd></div>`;
+		}
+
 		map.on("load", () => {
 			for (const p of points) {
 				const color =
@@ -56,20 +83,35 @@ const points = withGeo.map((l) => ({
 						: p.status === "under_offer"
 							? "#8b5a2b"
 							: "#2f4737";
+				const facts =
+					fact("Layout", p.layout) +
+					fact("Floor", p.floor, " m²") +
+					fact("Land", p.land, " m²") +
+					fact("Built", p.built);
 				const html = `
-					<a href="/listings/${p.slug}" style="text-decoration:none;color:inherit;display:block;width:200px">
-						${p.hero ? `<img src="${p.hero}" style="width:100%;height:120px;object-fit:cover;border-radius:6px;margin-bottom:0.5rem" />` : ""}
-						<strong style="font-family:ui-serif,Georgia,serif;font-size:0.95rem;line-height:1.3;display:block;margin-bottom:0.25rem">${p.title}</strong>
-						<span style="color:#2f4737;font-weight:600">${p.price}</span>
+					<a class="kp-link" href="/listings/${p.slug}">
+						${p.hero ? `<div class="kp-img" style="background-image:url('${p.hero}')"></div>` : ""}
+						<div class="kp-body">
+							<p class="kp-loc">${p.location}</p>
+							<h3 class="kp-title">${p.title}</h3>
+							<p class="kp-price">${p.price}</p>
+							${facts ? `<dl class="kp-facts">${facts}</dl>` : ""}
+						</div>
 					</a>
 				`;
 				new maplibregl.Marker({ color })
 					.setLngLat([p.lon, p.lat])
-					.setPopup(new maplibregl.Popup({ offset: 24, closeButton: false }).setHTML(html))
+					.setPopup(
+						new maplibregl.Popup({
+							offset: 18,
+							closeButton: false,
+							className: "kp-popup",
+							maxWidth: "260px",
+						}).setHTML(html),
+					)
 					.addTo(map);
 			}
 			if (focusPoint) {
-				// open the popup for the focused point
 				setTimeout(() => {
 					const marker = document.querySelectorAll(".maplibregl-marker")[
 						points.indexOf(focusPoint)
@@ -89,12 +131,84 @@ const points = withGeo.map((l) => ({
 		left: 0;
 		right: 0;
 		bottom: 0;
-		top: 4.5rem; /* below the sticky header */
+		top: 0; /* JS overrides with measured header height */
 	}
-	:global(.maplibregl-popup-content) {
-		padding: 0.75rem !important;
-		border-radius: 10px !important;
+	:global(.kp-popup .maplibregl-popup-content) {
+		padding: 0 !important;
+		border-radius: 12px !important;
+		background: #fff !important;
+		box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18) !important;
 		font-family: ui-sans-serif, system-ui, sans-serif !important;
+		overflow: hidden;
+		border: 0 !important;
+	}
+	:global(.kp-popup .maplibregl-popup-tip) {
+		display: none !important;
+	}
+	:global(.kp-popup .kp-link) {
+		display: block;
+		width: 240px;
+		text-decoration: none;
+		color: inherit;
+	}
+	:global(.kp-popup .kp-img) {
+		width: 100%;
+		aspect-ratio: 16 / 10;
+		background-size: cover;
+		background-position: center;
+		background-color: rgba(47, 71, 55, 0.08);
+	}
+	:global(.kp-popup .kp-body) {
+		padding: 0.85rem 0.95rem 0.95rem;
+	}
+	:global(.kp-popup .kp-loc) {
+		font-size: 0.66rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: #645e51;
+		margin: 0 0 0.3rem;
+		font-weight: 500;
+	}
+	:global(.kp-popup .kp-title) {
+		font-family: ui-serif, "Iowan Old Style", Georgia, serif;
+		font-size: 1rem;
+		font-weight: 600;
+		line-height: 1.3;
+		margin: 0 0 0.35rem;
+		color: #1c1a16;
+	}
+	:global(.kp-popup .kp-price) {
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: #2f4737;
+		margin: 0 0 0.7rem;
+	}
+	:global(.kp-popup .kp-facts) {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.4rem 0.6rem;
+		margin: 0;
+		padding: 0.6rem 0 0;
+		border-top: 1px solid #e9e2d3;
+	}
+	:global(.kp-popup .kp-facts > div) {
+		margin: 0;
+	}
+	:global(.kp-popup .kp-facts dt) {
+		font-size: 0.62rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: #a09887;
+		margin: 0 0 0.1rem;
+	}
+	:global(.kp-popup .kp-facts dd) {
+		font-size: 0.82rem;
+		font-weight: 500;
+		color: #1c1a16;
+		margin: 0;
+	}
+	:global(.kp-popup .kp-link:hover .kp-title) {
+		color: #2f4737;
 	}
 	:global(footer) {
 		display: none;
