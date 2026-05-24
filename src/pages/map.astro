@@ -70,9 +70,26 @@ const points = withGeo.map((l) => ({
 		const focusSlug = new URLSearchParams(location.search).get("focus");
 		const focusPoint = points.find((p) => p.slug === focusSlug);
 
+		// OpenStreetMap raster tiles - openfreemap.org's /planet endpoint
+		// started 403-ing in May 2026, so the previous vector style died.
 		const map = new maplibregl.Map({
 			container: el,
-			style: "https://tiles.openfreemap.org/styles/liberty",
+			style: {
+				version: 8,
+				sources: {
+					osm: {
+						type: "raster",
+						tiles: [
+							"https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+							"https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+							"https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+						],
+						tileSize: 256,
+						attribution: "© OpenStreetMap contributors",
+					},
+				},
+				layers: [{ id: "osm", type: "raster", source: "osm" }],
+			},
 			center: focusPoint ? [focusPoint.lon, focusPoint.lat] : [136.5, 35.5],
 			zoom: focusPoint ? 9 : 4.5,
 			attributionControl: { compact: true },
