@@ -6,6 +6,16 @@ export interface KuraEnv {
   KURA_TOKEN?: string;
 }
 
+export interface Page {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  body: string;
+  published?: boolean;
+  published_at?: string;
+}
+
 export interface Listing {
   id: string;
   slug: string;
@@ -82,6 +92,20 @@ export async function fetchListing(
   if (!res.ok) throw new Error(`kura ${res.status}: ${await res.text()}`);
   const body = (await res.json()) as { data: Listing };
   return resolveMedia(body.data, c.base);
+}
+
+export async function fetchPage(
+  env: KuraEnv,
+  slug: string,
+  override?: { project?: string; token?: string; group?: string },
+): Promise<Page | null> {
+  const c = client(env, override);
+  const url = `${c.base}/api/v1/${c.project}/page/${encodeURIComponent(slug)}`;
+  const res = await fetch(url, { headers: c.headers });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`kura ${res.status}: ${await res.text()}`);
+  const body = (await res.json()) as { data: Page };
+  return body.data;
 }
 
 export interface DemoOverride {
