@@ -1,7 +1,9 @@
 ---
 import Base from "../layouts/Base.astro";
+import { marked } from "marked";
 import {
 	fetchListings,
+	fetchPage,
 	formatJpy,
 	statusLabel,
 	prefectureLabel,
@@ -10,6 +12,7 @@ import {
 	isDeadProjectError,
 	type KuraEnv,
 	type Listing,
+	type Page,
 	type DemoOverride,
 } from "../lib/kura";
 
@@ -50,9 +53,6 @@ let loadError: string | null = null;
 try {
 	listings = await fetchListings(env ?? {}, query, override);
 } catch (e) {
-	// If the override came from a stale cookie (sandbox expired), drop the
-	// cookie and retry against the canonical project. The visitor sees the
-	// public site instead of a 404.
 	if (override?.source === "cookie" && isDeadProjectError(e)) {
 		Astro.cookies.delete("kura_demo_preview", { path: "/" });
 		override = undefined;
@@ -65,6 +65,18 @@ try {
 		loadError = e instanceof Error ? e.message : "Failed to load";
 	}
 }
+
+// Editable home page from kura - title/subtitle/body markdown
+let home: Page | null = null;
+try {
+	home = await fetchPage(env ?? {}, "home", override);
+} catch {
+	// Non-fatal - we fall back to hard-coded copy below
+	home = null;
+}
+const heroTitle = home?.title || "Vacant houses for sale across rural Japan.";
+const heroEyebrow = home?.subtitle || "Rural Japan, quietly for sale";
+const heroBodyHtml = home?.body ? marked.parse(home.body) : "";
 
 // Build the prefecture dropdown from the actual data
 let allPrefs: { slug: string; label: string }[] = [];
@@ -85,18 +97,26 @@ const totalAvailable = listings.filter((l) => l.status === "available").length;
 const anyFilter = !!(status || prefSlug || minPrice || maxPrice);
 ---
 
-<Base title="Inaka Properties - vacant houses for sale in rural Japan">
+<Base title={`${heroTitle} - Inaka Properties`}>
 	<section class="hero">
-		<p class="eyebrow">{listings.length} listings · {totalAvailable} available</p>
-		<h1>Vacant houses for sale across rural Japan.</h1>
-		<p class="lede">
-			Properties from every corner of the country, listed for sale through
-			Inaka. This is a demonstration site backed by
-			<a href="https://kuracms.com">kura</a> - the listings, descriptions and
-			prices are fictitious, but the frontend and the admin interface
-			are real working software.
+		<p class="eyebrow">{heroEyebrow}</p>
+		<h1>{heroTitle}</h1>
+		{heroBodyHtml ? (
+			<div class="lede" set:html={heroBodyHtml} />
+		) : (
+			<p class="lede">
+				Properties from every corner of the country, listed for sale through
+				Inaka. A demonstration site backed by <a href="https://kuracms.com">kura</a>.
+			</p>
+		)}
+		<p class="hero-meta">
+			<span>{listings.length} listings</span>
+			<span class="dot"></span>
+			<span>{totalAvailable} available</span>
 		</p>
 	</section>
+
+	<div class="rule"></div>
 
 	<form class="filters" method="get">
 		<label>
@@ -149,7 +169,7 @@ const anyFilter = !!(status || prefSlug || minPrice || maxPrice);
 	)}
 
 	<section class="grid">
-		{listings.map((l) => (
+		{listings.map((l, i) => (
 			<a class="card" href={`/listings/${l.slug}`}>
 				<div class="photo">
 					{l.hero_image ? (
@@ -158,15 +178,16 @@ const anyFilter = !!(status || prefSlug || minPrice || maxPrice);
 						<div class="photo-placeholder"></div>
 					)}
 					<span class={`status status-${l.status}`}>{statusLabel(l.status)}</span>
+					<span class="price-tag">{formatJpy(l.price_jpy)}</span>
+					<span class="card-index">N{String(i + 1).padStart(2, "0")}</span>
 				</div>
 				<div class="body">
 					<p class="loc">{l.location}</p>
 					<h2>{l.title}</h2>
-					<p class="price">{formatJpy(l.price_jpy)}</p>
 					<dl>
 						{l.layout && <div><dt>Layout</dt><dd>{l.layout}</dd></div>}
-						{l.square_meters && <div><dt>Floor</dt><dd>{l.square_meters} m²</dd></div>}
-						{l.land_area_sqm && <div><dt>Land</dt><dd>{l.land_area_sqm.toLocaleString()} m²</dd></div>}
+						{l.square_meters && <div><dt>Floor</dt><dd>{l.square_meters} m<sup>2</sup></dd></div>}
+						{l.land_area_sqm && <div><dt>Land</dt><dd>{l.land_area_sqm.toLocaleString()} m<sup>2</sup></dd></div>}
 						{l.build_year && <div><dt>Built</dt><dd>{l.build_year}</dd></div>}
 					</dl>
 				</div>
@@ -177,238 +198,319 @@ const anyFilter = !!(status || prefSlug || minPrice || maxPrice);
 
 <style>
 	.hero {
-		padding: 3rem 0 3.5rem;
-		max-width: 44rem;
+		padding: 4.5rem 0 3rem;
+		max-width: 50rem;
 	}
 	.eyebrow {
-		font-size: 0.78rem;
-		color: var(--faint);
+		font-family: var(--sans);
+		font-size: 0.7rem;
+		color: var(--slate);
 		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		margin: 0 0 1rem;
+		letter-spacing: 0.28em;
+		margin: 0 0 1.6rem;
+		font-weight: 500;
 	}
 	.hero h1 {
-		font-size: clamp(2.2rem, 5vw, 3.3rem);
-		margin: 0 0 1.25rem;
-		line-height: 1.05;
+		font-family: var(--serif);
+		font-size: clamp(2.8rem, 6.5vw, 4.6rem);
+		margin: 0 0 1.5rem;
+		line-height: 1;
+		letter-spacing: -0.012em;
+		font-weight: 500;
 	}
 	.lede {
-		color: var(--muted);
+		color: var(--ink-2);
 		line-height: 1.65;
 		font-size: 1.05rem;
 		margin: 0;
 		max-width: 38rem;
+		font-family: var(--sans);
 	}
-	.lede a {
-		color: var(--accent);
+	.lede :global(p) {
+		margin: 0 0 1rem;
+	}
+	.lede :global(p:last-child) {
+		margin-bottom: 0;
+	}
+	.lede :global(a) {
+		color: var(--accent-deep);
 		text-decoration: underline;
 		text-underline-offset: 3px;
+		text-decoration-thickness: 1px;
 	}
+	.hero-meta {
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+		margin: 2rem 0 0;
+		font-family: var(--sans);
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.2em;
+		color: var(--slate);
+		font-weight: 500;
+	}
+	.hero-meta .dot {
+		width: 3px;
+		height: 3px;
+		background: var(--slate-soft);
+		border-radius: 50%;
+		display: inline-block;
+	}
+	.rule {
+		border-top: 1px solid var(--rule);
+		margin: 0 0 2.25rem;
+	}
+
 	.filters {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-		gap: 0.75rem 1rem;
-		padding: 1.1rem 1.35rem;
-		background: var(--card);
-		border: 1px solid var(--line);
-		border-radius: 14px;
+		gap: 0.65rem 1.4rem;
+		padding: 0 0 2rem;
 		margin-bottom: 2.5rem;
 		align-items: end;
+		border-bottom: 1px solid var(--rule);
 	}
 	.filters label {
 		display: flex;
 		flex-direction: column;
-		gap: 0.35rem;
-		font-size: 0.85rem;
+		gap: 0.4rem;
+		font-size: 0.88rem;
 		position: relative;
+		font-family: var(--sans);
 	}
 	.filters label > span {
-		color: var(--muted);
-		font-size: 0.7rem;
+		color: var(--slate);
+		font-size: 0.62rem;
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
+		letter-spacing: 0.2em;
 		font-weight: 500;
 	}
 	.filters input,
 	.filters select {
 		font: inherit;
-		padding: 0.5rem 0.65rem;
-		background: var(--bg);
-		color: var(--fg);
-		border: 1px solid var(--line);
-		border-radius: 8px;
+		padding: 0.55rem 0.1rem;
+		background: transparent;
+		color: var(--ink);
+		border: 0;
+		border-bottom: 1px solid var(--rule);
+		border-radius: 0;
 		transition: border-color 0.15s;
 	}
 	.filters select {
 		appearance: none;
 		-webkit-appearance: none;
 		-moz-appearance: none;
-		padding-right: 1.8rem;
+		padding-right: 1.4rem;
 		cursor: pointer;
 	}
 	.filters label:has(> select)::after {
 		content: "";
 		position: absolute;
-		right: 0.85rem;
-		bottom: 1rem;
-		width: 0.45rem;
-		height: 0.45rem;
-		border-right: 1.6px solid var(--muted);
-		border-bottom: 1.6px solid var(--muted);
+		right: 0.4rem;
+		bottom: 0.85rem;
+		width: 0.4rem;
+		height: 0.4rem;
+		border-right: 1.4px solid var(--slate);
+		border-bottom: 1.4px solid var(--slate);
 		transform: translateY(-50%) rotate(45deg);
 		pointer-events: none;
 	}
 	.filters input:focus,
 	.filters select:focus {
 		outline: none;
-		border-color: var(--accent);
+		border-bottom-color: var(--accent);
 	}
 	.filter-actions {
 		display: flex;
-		gap: 0.85rem;
-		align-items: center;
+		gap: 1rem;
+		align-items: baseline;
 	}
 	.filter-actions button {
-		background: var(--accent);
-		color: var(--card);
-		border: 0;
-		padding: 0.6rem 1.25rem;
-		border-radius: 8px;
+		background: var(--ink);
+		color: var(--paper);
+		border: 1px solid var(--ink);
+		padding: 0.7rem 1.35rem;
+		border-radius: 0;
 		font: inherit;
+		font-family: var(--sans);
+		font-size: 0.68rem;
 		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.18em;
 		cursor: pointer;
-		transition: filter 0.15s;
+		transition: background 0.15s, border-color 0.15s;
 	}
 	.filter-actions button:hover {
-		filter: brightness(1.1);
+		background: var(--accent);
+		border-color: var(--accent);
 	}
 	.filter-actions a {
-		color: var(--muted);
-		font-size: 0.85rem;
+		color: var(--slate);
+		font-size: 0.7rem;
 		text-decoration: none;
+		text-transform: uppercase;
+		letter-spacing: 0.18em;
+		border-bottom: 1px solid var(--rule);
+		padding-bottom: 2px;
 	}
 	.filter-actions a:hover {
-		color: var(--fg);
+		color: var(--ink);
+		border-bottom-color: var(--accent);
 	}
+
+	/* ---------- Editorial card grid ---------- */
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-		gap: 1.5rem;
+		grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+		gap: 3.5rem 2.5rem;
 		margin-bottom: 4rem;
 	}
 	.card {
 		text-decoration: none;
 		color: inherit;
-		background: var(--card);
-		border: 1px solid var(--line);
-		border-radius: 12px;
-		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		transition:
-			transform 0.18s ease,
-			box-shadow 0.18s ease,
-			border-color 0.18s ease;
+		gap: 1.1rem;
+		transition: opacity 0.18s ease;
 	}
 	.card:hover {
-		transform: translateY(-3px);
-		box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
-		border-color: #d8d0bd;
+		opacity: 0.94;
 	}
 	.photo {
 		position: relative;
 		aspect-ratio: 4 / 3;
 		overflow: hidden;
-		background: var(--accent-soft);
+		background: var(--paper-2);
 	}
 	.photo img {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 		display: block;
-		transition: transform 0.5s ease;
+		transition: transform 0.6s ease;
+		filter: saturate(0.92);
 	}
 	.card:hover .photo img {
-		transform: scale(1.03);
+		transform: scale(1.025);
+		filter: saturate(1);
 	}
 	.photo-placeholder {
 		width: 100%;
 		height: 100%;
-		background: linear-gradient(135deg, var(--accent) 0%, var(--muted) 100%);
+		background: linear-gradient(135deg, var(--paper-2) 0%, var(--rule) 100%);
 	}
 	.status {
 		position: absolute;
-		top: 0.85rem;
-		left: 0.85rem;
-		background: var(--badge-available);
-		color: #fff;
-		font-size: 0.7rem;
+		top: 0.9rem;
+		left: 0.9rem;
+		background: var(--ink);
+		color: var(--paper);
+		font-family: var(--sans);
+		font-size: 0.62rem;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		padding: 0.28rem 0.6rem;
-		border-radius: 5px;
-		font-weight: 600;
-		backdrop-filter: blur(8px);
+		letter-spacing: 0.2em;
+		padding: 0.32rem 0.65rem;
+		font-weight: 500;
 	}
 	.status-under_offer {
-		background: var(--badge-under-offer);
+		background: var(--accent);
 	}
 	.status-sold {
-		background: var(--badge-sold);
+		background: var(--slate-soft);
+		color: var(--ink);
+	}
+	.card-index {
+		position: absolute;
+		top: 0.9rem;
+		right: 0.9rem;
+		font-family: var(--sans);
+		font-size: 0.62rem;
+		letter-spacing: 0.18em;
+		color: var(--paper);
+		mix-blend-mode: difference;
+		font-weight: 500;
+	}
+	/* Vertical price label down the right edge of the photo */
+	.price-tag {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		background: var(--accent);
+		color: var(--paper);
+		font-family: var(--sans);
+		font-weight: 500;
+		font-size: 0.78rem;
+		letter-spacing: 0.04em;
+		padding: 0.55rem 0.85rem;
+		writing-mode: horizontal-tb;
 	}
 	.body {
-		padding: 1.1rem 1.3rem 1.35rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.55rem;
+		gap: 0.5rem;
+		padding: 0 0.1rem;
 	}
 	.loc {
-		font-size: 0.75rem;
+		font-family: var(--sans);
+		font-size: 0.65rem;
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: var(--muted);
+		letter-spacing: 0.22em;
+		color: var(--slate);
 		margin: 0;
 		font-weight: 500;
 	}
 	.card h2 {
-		font-size: 1.1rem;
+		font-family: var(--serif);
+		font-size: 1.5rem;
 		margin: 0;
-		line-height: 1.35;
-	}
-	.price {
-		font-size: 1.15rem;
-		font-weight: 700;
-		margin: 0.1rem 0 0;
-		color: var(--accent);
+		line-height: 1.2;
+		font-weight: 500;
+		letter-spacing: -0.005em;
+		color: var(--ink);
 	}
 	dl {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
-		gap: 0.45rem 0.7rem;
-		margin: 0.4rem 0 0;
-		padding: 0;
+		gap: 0.6rem 1.2rem;
+		margin: 0.65rem 0 0;
+		padding: 0.8rem 0 0;
+		border-top: 1px solid var(--rule);
+		font-family: var(--sans);
+	}
+	dl > div {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
 	}
 	dt {
-		color: var(--faint);
-		font-size: 0.7rem;
+		color: var(--slate-soft);
+		font-size: 0.58rem;
 		text-transform: uppercase;
-		letter-spacing: 0.07em;
+		letter-spacing: 0.2em;
 		margin: 0;
+		font-weight: 500;
 	}
 	dd {
 		margin: 0;
-		font-size: 0.9rem;
-		font-weight: 500;
+		font-size: 0.92rem;
+		font-weight: 400;
+		color: var(--ink-2);
+	}
+	dd sup {
+		font-size: 0.7em;
 	}
 	.muted {
-		color: var(--muted);
+		color: var(--slate);
 		padding: 2rem 0;
 		text-align: center;
+		font-family: var(--sans);
 	}
 	.err {
-		color: var(--badge-under-offer);
+		color: var(--accent-deep);
 		background: var(--accent-soft);
 		padding: 0.75rem 1rem;
-		border-radius: 8px;
+		border-left: 2px solid var(--accent);
+		font-family: var(--sans);
 	}
 </style>

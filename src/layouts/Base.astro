@@ -18,212 +18,243 @@ const path = Astro.url.pathname;
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap"
+			rel="stylesheet"
+		/>
 		<title>{title}</title>
 		<meta name="description" content={description} />
 		<style is:global>
 			:root {
-				--bg: #faf7f1;
-				--fg: #1c1a16;
-				--muted: #645e51;
-				--faint: #a09887;
-				--line: #e9e2d3;
+				/* Cool editorial palette - paper, ink, slate, with one warm accent */
+				--paper: #f4f3ef;
+				--paper-2: #eceae3;
+				--ink: #15171a;
+				--ink-2: #2a2d33;
+				--slate: #5c636e;
+				--slate-soft: #97a0a8;
+				--rule: #d8d9d3;
+				--rule-soft: #e6e5df;
 				--card: #ffffff;
-				--accent: #2f4737;
-				--accent-soft: rgba(47, 71, 55, 0.08);
-				--accent-hover: #243a2c;
-				--header-bg: #f5f0e3;
-				--badge-available: #2f4737;
-				--badge-under-offer: #8b5a2b;
-				--badge-sold: #6b6660;
+				--accent: #c45a3a;
+				--accent-deep: #a8482c;
+				--accent-soft: rgba(196, 90, 58, 0.08);
+
+				/* Back-compat aliases used by remaining components */
+				--bg: var(--paper);
+				--fg: var(--ink);
+				--muted: var(--slate);
+				--faint: var(--slate-soft);
+				--line: var(--rule);
+				--header-bg: var(--paper);
+				--badge-available: var(--ink);
+				--badge-under-offer: var(--accent);
+				--badge-sold: var(--slate-soft);
+
+				--serif: "Cormorant Garamond", "Source Serif Pro", "Iowan Old Style",
+					"Hiragino Mincho ProN", Georgia, serif;
+				--sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Hiragino Sans",
+					"Yu Gothic", sans-serif;
 			}
 			* {
 				box-sizing: border-box;
 			}
 			body {
 				margin: 0;
-				color: var(--fg);
-				background: var(--bg);
-				font-family:
-					ui-sans-serif,
-					system-ui,
-					-apple-system,
-					"Hiragino Sans",
-					"Yu Gothic",
-					sans-serif;
+				color: var(--ink);
+				background: var(--paper);
+				font-family: var(--sans);
+				font-size: 16px;
+				font-weight: 400;
 				-webkit-font-smoothing: antialiased;
-				font-feature-settings: "ss01" on;
 			}
 			h1,
 			h2,
 			h3 {
-				font-family:
-					ui-serif,
-					"Iowan Old Style",
-					"Hiragino Mincho ProN",
-					Georgia,
-					serif;
-				font-weight: 600;
-				letter-spacing: -0.018em;
+				font-family: var(--serif);
+				font-weight: 500;
+				letter-spacing: -0.005em;
+				color: var(--ink);
 			}
 			a {
 				color: inherit;
 			}
 			.shell {
-				max-width: 76rem;
+				max-width: 78rem;
 				margin: 0 auto;
-				padding: 0 clamp(1rem, 4vw, 3rem);
+				padding: 0 clamp(1.25rem, 5vw, 4rem);
 			}
+
+			/* ---------- Header: centred wordmark, hairline rule, tracked nav ---- */
 			.site-header {
 				position: sticky;
 				top: 0;
 				z-index: 30;
-				background: var(--header-bg);
-				border-bottom: 1px solid var(--line);
-				backdrop-filter: saturate(140%) blur(8px);
+				background: var(--paper);
+				border-bottom: 1px solid var(--rule);
 			}
 			.site-nav {
-				display: flex;
-				justify-content: space-between;
+				display: grid;
+				grid-template-columns: 1fr auto 1fr;
 				align-items: center;
-				padding: 0.95rem 0;
-				gap: 2rem;
+				padding: 1.4rem 0 1.15rem;
+				gap: 1.5rem;
+			}
+			.site-meta {
+				font-family: var(--sans);
+				font-size: 0.68rem;
+				text-transform: uppercase;
+				letter-spacing: 0.22em;
+				color: var(--slate);
+				font-weight: 500;
 			}
 			.brand {
-				display: inline-flex;
-				align-items: baseline;
-				gap: 0.55rem;
 				text-decoration: none;
+				display: inline-flex;
+				flex-direction: column;
+				align-items: center;
+				line-height: 1;
+				color: var(--ink);
 			}
 			.brand .mark {
-				font-family:
-					ui-serif,
-					"Iowan Old Style",
-					Georgia,
-					serif;
-				font-size: 1.55rem;
-				font-weight: 700;
-				letter-spacing: -0.035em;
+				font-family: var(--serif);
+				font-size: clamp(1.75rem, 3.2vw, 2.25rem);
+				font-weight: 500;
+				letter-spacing: 0.01em;
+				font-style: italic;
 				line-height: 1;
-				color: var(--fg);
-			}
-			.brand .dot {
-				display: inline-block;
-				width: 5px;
-				height: 5px;
-				border-radius: 50%;
-				background: var(--accent);
-				transform: translateY(-0.3rem);
 			}
 			.brand .sub {
-				font-family:
-					ui-sans-serif,
-					system-ui,
-					sans-serif;
-				font-size: 0.78rem;
-				color: var(--muted);
+				font-family: var(--sans);
+				font-size: 0.62rem;
+				color: var(--slate);
 				text-transform: uppercase;
-				letter-spacing: 0.18em;
+				letter-spacing: 0.42em;
 				font-weight: 500;
-				transform: translateY(-0.1rem);
-			}
-			@media (max-width: 480px) {
-				.brand .sub {
-					font-size: 0.7rem;
-					letter-spacing: 0.14em;
-				}
+				margin-top: 0.45rem;
+				padding-left: 0.42em; /* offset the trailing tracking */
 			}
 			.nav-links {
 				display: flex;
 				align-items: center;
-				gap: 2rem;
-				font-size: 0.93rem;
+				justify-content: flex-end;
+				gap: 2.25rem;
+				font-family: var(--sans);
+				font-size: 0.72rem;
+				text-transform: uppercase;
+				letter-spacing: 0.22em;
+				font-weight: 500;
 			}
 			.nav-links a {
-				color: var(--muted);
+				color: var(--slate);
 				text-decoration: none;
-				position: relative;
-				padding: 0.25rem 0;
-				transition: color 0.15s;
+				padding: 0.35rem 0;
+				border-bottom: 1px solid transparent;
+				transition: color 0.15s, border-color 0.15s;
 			}
 			.nav-links a:hover,
 			.nav-links a:focus-visible {
-				color: var(--fg);
+				color: var(--ink);
 				outline: none;
+				border-bottom-color: var(--ink);
 			}
 			.nav-links a[aria-current="page"] {
-				color: var(--fg);
+				color: var(--ink);
+				border-bottom-color: var(--accent);
 			}
-			.nav-links a[aria-current="page"]::after {
-				content: "";
-				position: absolute;
-				left: 0;
-				right: 0;
-				bottom: -0.55rem;
-				height: 2px;
-				background: var(--accent);
-				border-radius: 2px;
+			@media (max-width: 720px) {
+				.site-nav {
+					grid-template-columns: 1fr;
+					justify-items: center;
+					gap: 0.9rem;
+					padding: 1rem 0 0.9rem;
+				}
+				.site-meta {
+					display: none;
+				}
+				.nav-links {
+					justify-content: center;
+					gap: 1.5rem;
+					font-size: 0.66rem;
+				}
 			}
+
+			/* ---------- Footer ---------- */
 			footer {
 				margin-top: 8rem;
-				padding: 6rem 0 5rem;
-				border-top: 1px solid var(--line);
-				color: var(--muted);
-				font-size: 0.95rem;
+				padding: 5rem 0 4rem;
+				border-top: 1px solid var(--rule);
+				color: var(--slate);
+				font-family: var(--sans);
+				font-size: 0.92rem;
 				line-height: 1.7;
+				background: var(--paper-2);
 			}
 			footer a {
-				color: var(--accent);
+				color: var(--ink);
 				text-decoration: underline;
-				text-underline-offset: 3px;
+				text-decoration-color: var(--accent);
+				text-underline-offset: 4px;
+				text-decoration-thickness: 1px;
 			}
 			footer a:hover {
-				filter: brightness(1.2);
+				color: var(--accent-deep);
 			}
 			.foot-pitch {
-				max-width: 46rem;
-				margin: 0 auto 4.5rem;
+				max-width: 42rem;
+				margin: 0 auto 4rem;
 				text-align: center;
 			}
 			.foot-pitch p {
-				margin: 0 0 1.25rem;
+				margin: 0 0 1.1rem;
 			}
 			.foot-pitch p:last-child {
 				margin-bottom: 0;
 			}
 			.foot-h {
-				font-family: ui-serif, "Iowan Old Style", Georgia, serif;
-				font-size: 1.45rem;
-				color: var(--fg);
-				font-weight: 600;
+				font-family: var(--serif);
+				font-style: italic;
+				font-size: clamp(1.5rem, 2.6vw, 1.85rem);
+				color: var(--ink);
+				font-weight: 500;
 				margin-bottom: 1.5rem !important;
 				line-height: 1.35;
+				letter-spacing: -0.005em;
 			}
 			.foot-cta-wrap {
 				margin-top: 2rem !important;
 			}
 			.foot-cta {
 				display: inline-block;
-				padding: 0.7rem 1.4rem;
-				background: var(--accent);
-				color: var(--card) !important;
-				border-radius: 8px;
+				padding: 0.85rem 1.6rem;
+				background: var(--ink);
+				color: var(--paper) !important;
+				font-family: var(--sans);
+				font-size: 0.72rem;
 				font-weight: 500;
+				letter-spacing: 0.18em;
+				text-transform: uppercase;
 				text-decoration: none !important;
-				transition: filter 0.15s;
+				border: 1px solid var(--ink);
+				transition: background 0.15s, color 0.15s, border-color 0.15s;
 			}
 			.foot-cta:hover {
-				filter: brightness(1.15);
+				background: var(--accent);
+				border-color: var(--accent);
+				color: var(--paper) !important;
 			}
 			.foot-meta {
 				padding-top: 2.5rem;
-				border-top: 1px solid var(--line);
+				border-top: 1px solid var(--rule);
 				display: flex;
 				flex-wrap: wrap;
 				justify-content: space-between;
 				align-items: baseline;
 				gap: 1.5rem;
-				font-size: 0.82rem;
-				color: var(--faint);
+				font-size: 0.78rem;
+				color: var(--slate-soft);
 				line-height: 1.65;
 			}
 			.foot-disclaim {
@@ -232,28 +263,31 @@ const path = Astro.url.pathname;
 				max-width: 48rem;
 			}
 			.foot-disclaim strong {
-				color: var(--muted);
+				color: var(--slate);
 				font-weight: 600;
 			}
 			.foot-source {
 				margin: 0;
 				white-space: nowrap;
+				font-size: 0.7rem;
+				letter-spacing: 0.16em;
+				text-transform: uppercase;
+			}
+			.foot-source a {
+				text-decoration: none;
+				border-bottom: 1px solid var(--rule);
+				padding-bottom: 1px;
+			}
+			.foot-source a:hover {
+				border-bottom-color: var(--accent);
 			}
 			@media (max-width: 720px) {
 				footer {
-					padding: 4.5rem 0 3.5rem;
+					padding: 4rem 0 3rem;
+					margin-top: 5rem;
 				}
 				.foot-pitch {
-					margin-bottom: 3.5rem;
-				}
-			}
-			@media (max-width: 480px) {
-				.nav-links {
-					gap: 1.25rem;
-					font-size: 0.88rem;
-				}
-				.brand .mark {
-					font-size: 1.35rem;
+					margin-bottom: 3rem;
 				}
 			}
 		</style>
@@ -262,8 +296,10 @@ const path = Astro.url.pathname;
 		<header class="site-header">
 			<div class="shell">
 				<div class="site-nav">
+					<span class="site-meta">Est. for kura demo</span>
 					<a class="brand" href="/">
-						<span class="mark">Inaka</span><span class="dot"></span><span class="sub">Properties</span>
+						<span class="mark">Inaka</span>
+						<span class="sub">Properties</span>
 					</a>
 					<nav class="nav-links">
 						<a href="/" aria-current={path === "/" ? "page" : undefined}>Listings</a>
@@ -305,8 +341,7 @@ const path = Astro.url.pathname;
 							·
 							<a href="/terms">Terms</a>
 							·
-							Source on
-							<a href="https://github.com/kuracms/kura-property-website-example">GitHub</a>.
+							<a href="https://github.com/kuracms/kura-property-website-example">GitHub</a>
 						</p>
 					</div>
 				</div>
