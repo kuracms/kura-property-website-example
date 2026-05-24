@@ -88,6 +88,25 @@ const path = Astro.url.pathname;
 				padding: 0 clamp(1.25rem, 5vw, 4rem);
 			}
 
+			/* ---------- Demo banner (consistent across all five kura demos) ---- */
+			.kura-demo-banner {
+				background: #111;
+				color: #d9d9d9;
+				text-align: center;
+				padding: 0.45rem 1rem;
+				font-size: 0.78rem;
+				letter-spacing: 0.02em;
+			}
+			.kura-demo-banner a {
+				color: #fff;
+				text-decoration: none;
+				border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+				padding-bottom: 1px;
+			}
+			.kura-demo-banner a:hover {
+				border-bottom-color: #fff;
+			}
+
 			/* ---------- Header: centred wordmark, hairline rule, tracked nav ---- */
 			.site-header {
 				position: sticky;
@@ -294,6 +313,11 @@ const path = Astro.url.pathname;
 		</style>
 	</head>
 	<body>
+		<div class="kura-demo-banner">
+			<a href="https://kuracms.com" target="_blank" rel="noreferrer">
+				This is a demonstration site for kura - see how it works at kuracms.com &rarr;
+			</a>
+		</div>
 		<header class="site-header">
 			<div class="shell">
 				<div class="site-nav">
