@@ -100,7 +100,7 @@ export async function fetchPage(
   override?: { project?: string; token?: string; group?: string },
 ): Promise<Page | null> {
   const c = client(env, override);
-  const url = `${c.base}/api/v1/${c.project}/page/${encodeURIComponent(slug)}`;
+  const url = `${c.base}/api/v1/${c.project}/global/${encodeURIComponent(slug)}`;
   const res = await fetch(url, { headers: c.headers });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`kura ${res.status}: ${await res.text()}`);
